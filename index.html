@@ -1,5 +1,4 @@
-<!DOCTYPE html><script>try{Object.defineProperty(navigator,'locks',{value:undefined,configurable:true})}catch(e){}
-setTimeout(function(){var a=document.getElementById('app');if(a&&a.textContent.indexOf('Loading')>-1)a.innerHTML+='<p style="padding:24px;color:#f87171">Still not loading after 8 seconds. Please tell Claude.</p>'},8000)</script>
+<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Kuda Earn</title>
@@ -28,11 +27,41 @@ nav button{background:none;border:0;border-radius:18px;padding:8px 10px;color:va
 .step{display:flex;gap:12px;align-items:center;border:1px solid var(--bd);border-radius:16px;padding:12px;margin-top:10px;cursor:pointer}.num{width:34px;height:34px;border-radius:50%;background:var(--bd);display:grid;place-items:center;font-weight:800;flex:none}
 .big{font-size:30px;font-weight:800;text-align:center;margin:6px 0}.c{text-align:center}.sp{height:12px}
 </style></head><body><div id="app"><p style="padding:24px;color:#8fa498;font-family:sans-serif">Loading Kuda Earn...</p></div><div id="toast"></div>
-<script>window.onerror=function(m){var a=document.getElementById('app');if(a&&a.textContent.indexOf('Loading')>-1)a.innerHTML='<p style="padding:24px;color:#f87171;font-family:sans-serif">Something went wrong: '+m+'</p>'}</script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.58.0/dist/umd/supabase.js"></script>
-<script>window.supabase||document.write('<script src="https://unpkg.com/@supabase/supabase-js@2.58.0/dist/umd/supabase.js"><\/script>')</script>
+<script>window.STAGE='page started';
+window.onerror=function(m){var a=document.getElementById('app');if(a&&a.textContent.indexOf('Loading')>-1)a.innerHTML='<p style="padding:24px;color:#f87171;font-family:sans-serif">Something went wrong: '+m+' (stage: '+window.STAGE+')</p>'};
+setTimeout(function(){var a=document.getElementById('app');if(a&&a.textContent.indexOf('Loading')>-1)a.innerHTML+='<p style="padding:24px;color:#f87171;font-family:sans-serif">Still loading after 8 seconds. Stage: '+window.STAGE+'. Please tell Claude.</p>'},8000)</script>
 <script>
-const sb=supabase.createClient('https://ypuyyqbogttwqscbdmvw.supabase.co','sb_publishable_pvq4L_ApltQJyuXhPHW6gg_Gk5C7hnd');
+window.STAGE='script running';
+const URL_='https://ypuyyqbogttwqscbdmvw.supabase.co',KEY='sb_publishable_pvq4L_ApltQJyuXhPHW6gg_Gk5C7hnd';
+let SESS=null;try{SESS=JSON.parse(localStorage.getItem('kuda_s')||'null')}catch(e){}
+const saveS=s=>{SESS=s;try{s?localStorage.setItem('kuda_s',JSON.stringify(s)):localStorage.removeItem('kuda_s')}catch(e){}};
+async function api(path,o={}){
+ const h=Object.assign({apikey:KEY},o.headers||{});if(SESS)h.Authorization='Bearer '+SESS.access_token;
+ let body=o.body;if(body&&!(body instanceof Blob)){h['Content-Type']='application/json';body=JSON.stringify(body)}
+ let r,d=null;try{r=await fetch(URL_+path,{method:o.method||'GET',headers:h,body:body})}catch(e){return{data:null,error:{message:'Network problem. Check your internet.'}}}
+ try{d=await r.json()}catch(e){}
+ if(!r.ok)return{data:null,error:{message:(d&&(d.msg||d.message||d.error_description||d.error))||('Error '+r.status)}};
+ return{data:d,error:null}}
+function Q(t){const q={m:'GET',p:[],b:null,one:false,sel:'*'};
+ const o={select(c){q.sel=c;return o},eq(c,v){q.p.push(c+'=eq.'+encodeURIComponent(v));return o},
+  order(c,x){q.p.push('order='+c+'.'+(x&&x.ascending===false?'desc':'asc'));return o},single(){q.one=true;return o},
+  insert(b){q.m='POST';q.b=b;return o},then(a,b){return run().then(a,b)}};
+ async function run(){if(q.m==='POST')return api('/rest/v1/'+t,{method:'POST',body:q.b,headers:{Prefer:'return=minimal'}});
+  return api('/rest/v1/'+t+'?select='+encodeURIComponent(q.sel)+(q.p.length?'&'+q.p.join('&'):''),{headers:q.one?{Accept:'application/vnd.pgrst.object+json'}:{}})}
+ return o}
+const sb={from:Q,rpc:(f,a)=>api('/rest/v1/rpc/'+f,{method:'POST',body:a||{}}),
+ auth:{async getSession(){
+   if(SESS&&SESS.expires_at&&SESS.expires_at*1000<Date.now()+6e4){const t=SESS.refresh_token;SESS=null;
+    const r=await api('/auth/v1/token?grant_type=refresh_token',{method:'POST',body:{refresh_token:t}});saveS(r.error?null:r.data)}
+   return{data:{session:SESS}}},
+  async signInWithPassword(c){const r=await api('/auth/v1/token?grant_type=password',{method:'POST',body:c});if(!r.error)saveS(r.data);return{data:{session:r.data},error:r.error}},
+  async signUp(c){const r=await api('/auth/v1/signup',{method:'POST',body:{email:c.email,password:c.password,data:c.options.data}});
+   const ok=!r.error&&r.data&&r.data.access_token;if(ok)saveS(r.data);return{data:{session:ok?r.data:null},error:r.error}},
+  async signOut(){saveS(null)}},
+ storage:{from:b=>({async upload(p,f){return api('/storage/v1/object/'+b+'/'+p,{method:'POST',body:f,headers:{'Content-Type':f.type||'application/octet-stream'}})},
+  async createSignedUrl(p,s){const r=await api('/storage/v1/object/sign/'+b+'/'+p,{method:'POST',body:{expiresIn:s}});
+   return{data:r.data?{signedUrl:URL_+'/storage/v1'+r.data.signedURL}:null,error:r.error}}})}};
+window.STAGE='database client ready';
 const $=s=>document.querySelector(s),N=n=>'₦'+Number(n||0).toLocaleString('en-NG',{minimumFractionDigits:2});
 const S={view:'home',tab:'all',wt:'task',auth:'login',m:null,step:1,file:null};
 let P=null,T=[],SUB=[],PAY=[],REF=[],A={pay:[],sub:[],wd:[],users:[]};
@@ -42,13 +71,16 @@ const go=v=>{S.view=v;draw();scrollTo(0,0)};
 const tag=s=>s==='pending'?'<span class="tag p">Pending</span>':s==='approved'||s==='activated'||s==='paid'?`<span class="tag a">${s==='approved'?'Approved':s==='paid'?'Paid':'Activated'}</span>`:'<span class="tag x">Rejected</span>';
 const act=()=>P&&P.activated;
 async function load(){
+ window.STAGE='checking login';
  const{data:{session}}=await sb.auth.getSession();if(!session){P=null;return draw()}
+ window.STAGE='loading your data';
  const u=session.user.id;
  const[p,t,s,y,r]=await Promise.all([sb.from('profiles').select('*').eq('id',u).single(),
   sb.from('tasks').select('*').eq('active',true).order('id'),
   sb.from('submissions').select('*,tasks(title,reward)').eq('user_id',u).order('id',{ascending:false}),
   sb.from('payments').select('*').eq('user_id',u).order('id',{ascending:false}),
   sb.from('profiles').select('full_name,activated').eq('referred_by',u)]);
+ if(p.error){saveS(null);P=null;draw();return toast(p.error.message)}
  P=p.data;T=t.data||[];SUB=s.data||[];PAY=y.data||[];REF=r.data||[];
  if(P&&P.is_admin){const[a,b,c,d]=await Promise.all([
   sb.from('payments').select('*,profiles(full_name,email)').eq('status','pending'),
@@ -109,15 +141,4 @@ function admin(){const a=A,pr=(a.pay.length+a.sub.length+a.wd.length);
 <div class="row" style="gap:10px"><div class="card" style="flex:1"><p>Users</p><b>${a.users.length}</b></div><div class="card" style="flex:1"><p>Pending items</p><b>${pr}</b></div></div>
 <div class="card"><h2>Activation payments</h2>${a.pay.map(x=>`<div class="row" style="margin-bottom:12px"><div><b>${x.profiles.full_name||x.profiles.email}</b><p><a href="#" onclick="view('${x.proof_path}');return false" style="color:var(--g)">View proof</a></p></div><div class="row"><button class="btn sm" onclick="rpc('approve_payment',{pid:${x.id}},'Account activated')">Approve</button><button class="btn sm r" onclick="rpc('reject_payment',{pid:${x.id}},'Rejected')">Reject</button></div></div>`).join('')||'<p>No pending payments.</p>'}</div>
 <div class="card"><h2>Task submissions</h2>${a.sub.map(x=>`<div class="row" style="margin-bottom:12px"><div><b>${x.profiles.full_name||'Member'}</b><p>${x.tasks.title} · <a href="#" onclick="view('${x.proof_path}');return false" style="color:var(--g)">View proof</a></p></div><div class="row"><button class="btn sm" onclick="rpc('review_submission',{sid:${x.id},ok:true},'Approved. Reward paid')">Approve</button><button class="btn sm r" onclick="rpc('review_submission',{sid:${x.id},ok:false,why:'Proof not accepted'},'Rejected')">Reject</button></div></div>`).join('')||'<p>No pending submissions.</p>'}</div>
-<div class="card"><h2>Withdrawal requests</h2>${a.wd.map(x=>`<div style="margin-bottom:14px"><b>${N(x.amount)}</b> · ${x.wallet==='task'?'Task':'Affiliate'} wallet<p>${x.profiles.full_name||''}<br>${x.profiles.bank_name||'No bank'} · ${x.profiles.account_number||''}<br>${x.profiles.account_name||''}</p><div class="row" style="margin-top:8px"><button class="btn sm" onclick="rpc('mark_withdrawal',{wid:${x.id},paid:true},'Marked as paid')">Mark paid</button><button class="btn sm r" onclick="rpc('mark_withdrawal',{wid:${x.id},paid:false},'Rejected and refunded')">Reject</button></div></div>`).join('')||'<p>No pending withdrawals.</p>'}</div>
-<div class="card"><h2>Add a new task</h2><input id="tt" placeholder="Task title"><input id="td" placeholder="Short description"><input id="tr" type="number" placeholder="Reward (₦)"><input id="tl" placeholder="Link (https://...)"><button class="btn" onclick="addT()">Publish task</button></div>
-<div class="card"><h2>Add money to a user</h2><select id="mu">${a.users.map(u=>`<option value="${u.id}">${u.full_name||u.email}</option>`).join('')}</select><select id="mw"><option value="task">Task wallet</option><option value="aff">Affiliate wallet</option></select><input id="ma" type="number" placeholder="Amount (₦)"><button class="btn" onclick="addM()">Add money</button></div>
-<button class="btn o" onclick="go('profile')">Exit admin</button>`}
-function modal(){const m=S.m;if(!m)return '';let c='';
- if(m==='fund'){const pend=PAY.find(x=>x.status==='pending');
-  c=act()?`<h2>Account activated</h2><button class="btn" onclick="S.m=null;draw()">Continue</button>`:pend?`<h2>Waiting for approval</h2><p>Your payment proof was sent. You can start tasks once admin approves.</p><div class="sp"></div><button class="btn" onclick="S.m=null;draw()">Close</button>`:
-  `<h2>Activate your account</h2><p>Pay ₦1,000 to this account, then send your proof.</p><div class="acct">Opay<br>7075181252<br>Veronica Dooshima Apinega</div>${fileBox()}<button id="sb" class="btn" disabled onclick="sendPay()">Submit for admin approval</button><div class="sp"></div><button class="btn o" onclick="S.m=null;draw()">Cancel</button>`}
- else{const t=T.find(x=>x.id===m.t);c=S.step===1?`<h2>${t.title}</h2><p>Join the channel, then come back here.</p><div class="step" onclick="window.open('${t.link}','_blank')"><div class="num">1</div><b>Open the Telegram channel</b></div><div class="sp"></div><button class="btn" onclick="S.step=2;draw()">I completed the task</button>`:`<h2>Send your proof</h2><p>Upload a screenshot showing you joined.</p>${fileBox()}<button id="sb" class="btn" disabled onclick="sendTask(${t.id})">Submit for admin approval</button>`;c+=`<div class="sp"></div><button class="btn o" onclick="S.m=null;draw()">Cancel</button>`}
- return `<div class="ov"><div class="sheet">${c}</div></div>`}
-function draw(){const a=$('#app');if(!P){a.innerHTML=auth();return}
- const v=({home,tasks,wallet,refer,profile,admin})[S.view]();a.innerHTML=v+(S.vie
+<div class="card"><h2>Withdrawal
